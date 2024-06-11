@@ -16,6 +16,7 @@ py_library(
         "//demo",
         # REF(//scripts/scaffold_component.py):insert_component_e2e_import
         "//mesop/components/button_toggle/e2e",
+        "//mesop/components/html/e2e",
         "//mesop/components/uploader/e2e",
         "//mesop/components/embed/e2e",
         "//mesop/components/table/e2e",

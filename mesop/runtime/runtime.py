@@ -4,7 +4,7 @@ from typing import Any, Callable, Generator, Type, TypeVar, cast
 from flask import g
 
 import mesop.protos.ui_pb2 as pb
-from mesop.events import MesopEvent
+from mesop.events import LoadEvent, MesopEvent
 from mesop.exceptions import MesopDeveloperException, MesopUserException
 from mesop.key import Key
 from mesop.security.security_policy import SecurityPolicy
@@ -21,11 +21,16 @@ class EmptyState:
   pass
 
 
+OnLoadHandler = Callable[[LoadEvent], None | Generator[None, None, None]]
+
+
 @dataclass(kw_only=True)
 class PageConfig:
   page_fn: Callable[[], None]
   title: str
+  stylesheets: list[str]
   security_policy: SecurityPolicy
+  on_load: OnLoadHandler | None
 
 
 E = TypeVar("E", bound=MesopEvent)
@@ -150,11 +155,12 @@ def runtime():
   return _runtime
 
 
-def reset_runtime():
+def reset_runtime(without_hot_reload: bool = False):
   global _runtime
   old_runtime = _runtime
   _runtime = Runtime()
-  _runtime.is_hot_reload_in_progress = True
+  if not without_hot_reload:
+    _runtime.is_hot_reload_in_progress = True
   _runtime.hot_reload_counter = old_runtime.hot_reload_counter
   _runtime.debug_mode = old_runtime.debug_mode
   _runtime.component_fns = old_runtime.component_fns

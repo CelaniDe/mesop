@@ -1,9 +1,9 @@
 import {Injectable, NgZone} from '@angular/core';
 import {
-  InitRequest,
   ServerError,
   States,
   UiRequest,
+  UpdateStateEvent,
   UserEvent,
   Component as ComponentProto,
   UiResponse,
@@ -15,10 +15,13 @@ import {
 import {Logger} from '../dev_tools/services/logger';
 import {Title} from '@angular/platform-browser';
 import {SSE} from '../utils/sse';
-import {applyComponentDiff} from '../utils/diff';
+import {applyComponentDiff, applyStateDiff} from '../utils/diff';
+import {getViewportSize} from '../utils/viewport_size';
 
-const anyWindow = window as any;
-const DEV_SERVER_HOST = anyWindow['MESOP_SERVER_HOST'] || '';
+// Pick 500ms as the minimum duration before showing a progress/busy indicator
+// for the channel.
+// See: https://github.com/google/mesop/issues/365
+const WAIT_TIMEOUT_MS = 500;
 
 interface InitParams {
   zone: NgZone;
@@ -40,9 +43,11 @@ export enum ChannelStatus {
 })
 export class Channel {
   private _isHotReloading = false;
+  private isWaiting = false;
+  private isWaitingTimeout: number | undefined;
   private eventSource!: SSE;
   private initParams!: InitParams;
-  private states!: States;
+  private states: States = new States();
   private rootComponent?: ComponentProto;
   private status!: ChannelStatus;
   private componentConfigs: readonly ComponentConfig[] = [];
@@ -63,6 +68,13 @@ export class Channel {
     return this._isHotReloading;
   }
 
+  /**
+   * Return true if the channel has been doing work
+   * triggered by a user that's been taking a while. */
+  isBusy(): boolean {
+    return this.isWaiting && !this.isHotReloading();
+  }
+
   getRootComponent(): ComponentProto | undefined {
     return this.rootComponent;
   }
@@ -71,15 +83,15 @@ export class Channel {
     return this.componentConfigs;
   }
 
-  init(initParams: InitParams, request?: UiRequest) {
-    if (!request) {
-      request = new UiRequest();
-      request.setInit(new InitRequest());
-    }
-    this.eventSource = new SSE(`${DEV_SERVER_HOST}/ui`, {
+  init(initParams: InitParams, request: UiRequest) {
+    this.eventSource = new SSE('/ui', {
       payload: generatePayloadString(request),
     });
     this.status = ChannelStatus.OPEN;
+    this.isWaitingTimeout = setTimeout(() => {
+      this.isWaiting = true;
+    }, WAIT_TIMEOUT_MS);
+
     this.logger.log({type: 'StreamStart'});
 
     const {zone, onRender, onError, onCommand} = initParams;
@@ -92,6 +104,8 @@ export class Channel {
         if (data === '<stream_end>') {
           this.eventSource.close();
           this.status = ChannelStatus.CLOSED;
+          clearTimeout(this.isWaitingTimeout);
+          this.isWaiting = false;
           this._isHotReloading = false;
           this.logger.log({type: 'StreamEnd'});
           if (this.queuedEvents.length) {
@@ -105,8 +119,45 @@ export class Channel {
         const uiResponse = UiResponse.deserializeBinary(array);
         console.debug('Server event: ', uiResponse.toObject());
         switch (uiResponse.getTypeCase()) {
+          case UiResponse.TypeCase.UPDATE_STATE_EVENT: {
+            switch (uiResponse.getUpdateStateEvent()!.getTypeCase()) {
+              case UpdateStateEvent.TypeCase.FULL_STATES: {
+                this.states = uiResponse
+                  .getUpdateStateEvent()!
+                  .getFullStates()!;
+                break;
+              }
+              case UpdateStateEvent.TypeCase.DIFF_STATES: {
+                const states = uiResponse
+                  .getUpdateStateEvent()!
+                  .getDiffStates()!;
+
+                const numDiffStates = states.getStatesList().length;
+                const numStates = this.states.getStatesList().length;
+
+                if (numDiffStates !== numStates) {
+                  throw Error(
+                    `Number of diffs (${numDiffStates}) doesn't equal the number of states (${numStates}))`,
+                  );
+                }
+
+                // `this.states` should be populated at this point since the first update
+                // from the server should be the full state.
+                for (let i = 0; i < numDiffStates; ++i) {
+                  const state = applyStateDiff(
+                    this.states.getStatesList()[i].getData() as string,
+                    states.getStatesList()[i].getData() as string,
+                  );
+                  this.states.getStatesList()[i].setData(state);
+                }
+                break;
+              }
+              case UpdateStateEvent.TypeCase.TYPE_NOT_SET:
+                throw new Error('No state event data set');
+            }
+            break;
+          }
           case UiResponse.TypeCase.RENDER: {
-            this.states = uiResponse.getRender()!.getStates()!;
             const rootComponent = uiResponse.getRender()!.getRootComponent()!;
             const componentDiff = uiResponse.getRender()!.getComponentDiff()!;
 
@@ -157,9 +208,14 @@ export class Channel {
   }
 
   dispatch(userEvent: UserEvent) {
-    // Except for navigation user event, every user event should have
-    // an event handler.
-    if (!userEvent.getHandlerId() && !userEvent.getNavigation()) {
+    userEvent.setViewportSize(getViewportSize());
+    // Every user event should have an event handler,
+    // except for navigation and resize.
+    if (
+      !userEvent.getHandlerId() &&
+      !userEvent.getNavigation() &&
+      !userEvent.getResize()
+    ) {
       // This is a no-op user event, so we don't send it.
       return;
     }
@@ -229,7 +285,9 @@ export class Channel {
     const request = new UiRequest();
     const userEvent = new UserEvent();
     userEvent.setStates(this.states);
-    userEvent.setNavigation(new NavigationEvent());
+    const navigationEvent = new NavigationEvent();
+    userEvent.setViewportSize(getViewportSize());
+    userEvent.setNavigation(navigationEvent);
     request.setUserEvent(userEvent);
     this.init(this.initParams, request);
   }

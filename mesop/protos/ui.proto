@@ -14,7 +14,7 @@ message UiRequest {
 }
 
 message InitRequest {
-
+    optional ViewportSize viewport_size = 1;
 }
 
 message UserEvent {
@@ -25,12 +25,15 @@ message UserEvent {
 
     optional Key key = 3;
 
+    optional ViewportSize viewport_size = 11;
+
     oneof type {
         bool bool_value = 4;
         string string_value = 5;
         double double_value = 7;
         int32 int_value = 8;
         NavigationEvent navigation = 6;
+        ResizeEvent resize = 10;
         bytes bytes_value = 9;
     }
 }
@@ -106,7 +109,20 @@ message ArgPathSegment {
 }
 
 // This is a user-triggered navigation (e.g. go back/forwards) or a hot reload event.
-message NavigationEvent{}
+message NavigationEvent{
+}
+
+// Fired whenever a user resizes the viewport/browser.
+message ResizeEvent {
+}
+
+message ViewportSize {
+    // Viewport width, in pixels.
+    optional int32 width = 1;
+
+    // Viewport height, in pixels.
+    optional int32 height = 2;
+}
 
 // Sent from Python server to web client.
 // Multiple UiResponse messages may be sent in response to 1 UiRequest.
@@ -114,6 +130,7 @@ message UiResponse {
     oneof type {
         RenderEvent render = 1;
         ServerError error = 2;
+        UpdateStateEvent update_state_event = 3;
     }
 }
 
@@ -145,13 +162,20 @@ message ContextLine {
 
 message RenderEvent {
     optional Component root_component = 1;
-    optional ComponentDiff component_diff = 6;
-    optional string title = 5;
-    optional States states = 2;
-    repeated Command commands = 3;
+    optional ComponentDiff component_diff = 2;
+    optional string title = 3;
+    repeated Command commands = 4;
 
     // Only sent in editor mode:
-    repeated ComponentConfig component_configs = 4;
+    repeated ComponentConfig component_configs = 5;
+}
+
+// UI response event for updating state.
+message UpdateStateEvent {
+    oneof type {
+        States full_states = 1;
+        States diff_states = 2;
+    }
 }
 
 message Command {
@@ -178,6 +202,8 @@ message States {
 // Serialized state of application. Sent from Python server to web client.
 // Web client doesn't parse this data, it just sends it back to the server.
 message State {
+    // Can contain full JSON state or diffs. This depends on
+    // `UpdateStateEvent.UpdateStrategy`.
     optional string data = 1;
 }
 

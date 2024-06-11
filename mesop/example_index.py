@@ -29,4 +29,5 @@ import mesop.components.table.e2e as table_e2e
 import mesop.components.embed.e2e as embed_e2e
 import mesop.components.uploader.e2e as uploader_e2e
 import mesop.components.button_toggle.e2e as button_toggle_e2e
+import mesop.components.html.e2e as html_e2e
 # REF(//scripts/scaffold_component.py):insert_component_e2e_import_export

@@ -59,6 +59,7 @@ from mesop.components.checkbox.checkbox import (
 from mesop.components.code.code import code as code
 from mesop.components.divider.divider import divider as divider
 from mesop.components.embed.embed import embed as embed
+from mesop.components.html.html import html as html
 from mesop.components.icon.icon import icon as icon
 from mesop.components.image.image import image as image
 from mesop.components.input.input import EnterEvent as EnterEvent
@@ -136,6 +137,9 @@ from mesop.events import (
 from mesop.events import (
   InputEvent as InputEvent,
 )
+from mesop.events import (
+  LoadEvent as LoadEvent,
+)
 from mesop.exceptions import (
   MesopDeveloperException as MesopDeveloperException,
 )
@@ -149,6 +153,8 @@ from mesop.exceptions import (
   MesopUserException as MesopUserException,
 )
 from mesop.features import page as page
+from mesop.features.viewport_size import Size as Size
+from mesop.features.viewport_size import viewport_size as viewport_size
 from mesop.key import Key as Key
 from mesop.runtime import runtime
 from mesop.security.security_policy import SecurityPolicy as SecurityPolicy
