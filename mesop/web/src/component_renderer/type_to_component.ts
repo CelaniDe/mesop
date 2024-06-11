@@ -1,3 +1,4 @@
+import {ButtonToggleComponent} from '../../../components/button_toggle/button_toggle';
 import {UploaderComponent} from '../../../components/uploader/uploader';
 import {EmbedComponent} from '../../../components/embed/embed';
 import {TableComponent} from '../../../components/table/table';
@@ -53,6 +54,7 @@ export class UserDefinedComponent implements BaseComponent {
 }
 
 export const typeToComponent = {
+  'button_toggle': ButtonToggleComponent,
   'uploader': UploaderComponent,
   'embed': EmbedComponent,
   'table': TableComponent,

@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package mesop.components.button_toggle;
+
+message ButtonToggleType {
+    optional string label = 1;
+}

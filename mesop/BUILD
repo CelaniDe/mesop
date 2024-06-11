@@ -19,6 +19,7 @@ py_library(
     deps = [
         ":version",
         # REF(//scripts/scaffold_component.py):insert_component_import
+        "//mesop/components/button_toggle:py",
         "//mesop/components/uploader:py",
         "//mesop/components/code:py",
         "//mesop/components/embed:py",
